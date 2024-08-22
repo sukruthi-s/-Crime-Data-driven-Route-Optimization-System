@@ -1,0 +1,44 @@
+import pandas as pd
+import folium
+from folium import Popup
+from folium.plugins import MarkerCluster
+import numpy as np
+
+# Load the clustered data
+clustered_data = pd.read_csv('clustered_sampled_dataset_by_area_2p.csv')
+
+# Create a map centered around the average coordinates
+center_lat = clustered_data['Latitude'].mean()
+center_lon = clustered_data['Longitude'].mean()
+crime_map = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+# Define color mapping for clusters
+def random_color():
+    return f"#{np.random.randint(0, 0xFFFFFF):06x}"
+
+cluster_colors = {
+    -1: 'black'  # Noise
+}
+for cluster in clustered_data['Cluster'].unique():
+    if cluster != -1:
+        cluster_colors[cluster] = random_color()
+
+# Create a MarkerCluster object
+marker_cluster = MarkerCluster().add_to(crime_map)
+
+# Add markers to the map
+for _, row in clustered_data.iterrows():
+    cluster_label = f"Cluster {row['Cluster']}" if row['Cluster'] != -1 else "Noise"
+    folium.CircleMarker(
+        location=[row['Latitude'], row['Longitude']],
+        radius=5,
+        color=cluster_colors[row['Cluster']],
+        fill=True,
+        fill_color=cluster_colors[row['Cluster']],
+        fill_opacity=0.6,
+        popup=Popup(f"{cluster_label}<br>Area: {row['Area']}", max_width=300)
+    ).add_to(marker_cluster)
+
+# Save the map to an HTML file
+crime_map.save('clustered_map_2p.html')
+print("Map saved as 'clustered_map_2p.html'.")

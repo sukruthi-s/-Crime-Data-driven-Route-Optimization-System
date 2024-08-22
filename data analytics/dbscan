@@ -1,0 +1,68 @@
+import pandas as pd
+from sklearn.cluster import DBSCAN
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load the dataset from the CSV file
+sampled_data = pd.read_csv('sampled_dataset_2p_wo_outliers.csv')
+
+# Function to perform DBSCAN clustering on a given area DataFrame
+def dbscan_within_area(area_df, epsilon, min_samples):
+    if len(area_df) < min_samples:
+        # Not enough points to form a cluster, label all points as noise
+        area_df['Cluster'] = -1
+    else:
+        coords = area_df[['Latitude', 'Longitude']].values
+        
+        # Perform DBSCAN clustering
+        db = DBSCAN(eps=epsilon, min_samples=min_samples, metric='haversine').fit(np.radians(coords))
+        
+        # Add the cluster labels to the DataFrame
+        area_df['Cluster'] = db.labels_
+    
+    return area_df
+
+# Define DBSCAN parameters
+epsilon = 0.01  # Example value, adjust as needed
+min_samples = 5  # Example value, adjust as needed
+
+# Create an empty DataFrame to store the results
+clustered_data = pd.DataFrame()
+
+# Group by 'Area' and apply the DBSCAN clustering function
+for area, group in sampled_data.groupby('Area'):
+    clustered_group = dbscan_within_area(group, epsilon, min_samples)
+    clustered_data = pd.concat([clustered_data, clustered_group])
+
+# Reset index for the final DataFrame
+clustered_data = clustered_data.reset_index(drop=True)
+
+# Print the number of clusters per area
+print(clustered_data.groupby('Area')['Cluster'].nunique())
+
+# Save the clustered data to a new CSV file
+clustered_data.to_csv('clustered_sampled_dataset_by_area_2p.csv', index=False)
+print("Clustered dataset saved in clustered_sampled_dataset_by_area_2p.csv'.")
+
+# Visualization of the clusters
+unique_labels = set(clustered_data['Cluster'])
+colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
+
+plt.figure(figsize=(10, 8))
+
+for area in clustered_data['Area'].unique():
+    area_data = clustered_data[clustered_data['Area'] == area]
+    for label, color in zip(unique_labels, colors):
+        if label == -1:
+            color = [0, 0, 0, 1]  # Black used for noise
+
+        class_member_mask = (area_data['Cluster'] == label)
+        xy = area_data[class_member_mask][['Longitude', 'Latitude']].values
+        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(color),
+                 markeredgecolor='k', markersize=6, label=f'Area {area} Cluster {label}' if label != -1 else f'Area {area} Noise')
+
+plt.title('DBSCAN Clustering Within Each Area')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.legend()
+plt.show()
